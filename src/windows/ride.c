@@ -602,6 +602,8 @@ static void window_ride_customer_update(rct_window *w);
 static void window_ride_customer_invalidate();
 static void window_ride_customer_paint();
 
+static void window_ride_set_colours();
+
 // 0x0098DFD4
 static void* window_ride_main_events[] = {
 	window_ride_emptysub,
@@ -796,7 +798,7 @@ static void* window_ride_music_events[] = {
 
 // 0x0098DE14
 static void* window_ride_measurements_events[] = {
-	window_ride_emptysub,
+	window_ride_measurements_close,
 	window_ride_measurements_mouseup,
 	window_ride_measurements_resize,
 	window_ride_measurements_mousedown,
@@ -1172,19 +1174,6 @@ rct_window *window_ride_open(int rideIndex)
 	w->max_width = 500;
 	w->max_height = 450;
 	w->flags |= WF_RESIZABLE;
-
-	if(!gConfigInterface.rct1_colour_scheme)
-	{
-		w->colours[0] = 1;
-		w->colours[1] = 26;
-		w->colours[2] = 11;
-	}
-	else
-	{
-		w->colours[0] = 26;
-		w->colours[1] = 1;
-		w->colours[2] = 11;
-	}
 
 	ride = GET_RIDE(rideIndex);
 	numSubTypes = 0;
@@ -1986,6 +1975,8 @@ static void window_ride_main_invalidate()
 
 	window_get_register(w);
 
+	window_ride_set_colours();
+
 	widgets = window_ride_page_widgets[w->page];
 	if (w->widgets != widgets) {
 		w->widgets = widgets;
@@ -2435,6 +2426,7 @@ static void window_ride_vehicle_invalidate()
 	int carsPerTrain;
 	
 	window_get_register(w);
+	window_ride_set_colours();
 
 	widgets = window_ride_page_widgets[w->page];
 	if (w->widgets != widgets) {
@@ -2703,6 +2695,10 @@ static void window_ride_mode_tweak_increase(rct_window *w)
 	//fast_lift_hill is the cheat that allows maxing out many limits on the Operating tab.
 	uint8 max_value = gConfigCheat.fast_lift_hill ? 255 : RCT2_GLOBAL(RCT2_ADDRESS_RIDE_FLAGS + (ride->type * 8) + 5, uint8);
 
+	//Allow 64 people in mazes under non-cheat settings. The old maximum of 16 was too little for even moderately big mazes.
+	if(ride->mode == RIDE_MODE_MAZE && !gConfigCheat.fast_lift_hill)
+		max_value = 64;
+
 	if (value < max_value)
 		value += ride->mode == RIDE_MODE_BUMPERCAR ? 10 : 1;
 
@@ -2920,7 +2916,7 @@ static void window_ride_operating_mousedown(int widgetIndex, rct_window *w, rct_
 		window_ride_load_dropdown(w, widget);
 		break;
 	case WIDX_OPERATE_NUMBER_OF_CIRCUITS_INCREASE:
-		set_operating_setting(w->number, 9, min(ride->num_circuits + 1, 7));
+		set_operating_setting(w->number, 9, min(ride->num_circuits + 1, 20));
 		break;
 	case WIDX_OPERATE_NUMBER_OF_CIRCUITS_DECREASE:
 		set_operating_setting(w->number, 9, max(1, ride->num_circuits - 1));
@@ -2994,6 +2990,7 @@ static void window_ride_operating_invalidate()
 	rct_string_id format, caption, tooltip;
 
 	window_get_register(w);
+	window_ride_set_colours();
 
 	widgets = window_ride_page_widgets[w->page];
 	if (w->widgets != widgets) {
@@ -3401,6 +3398,7 @@ static void window_ride_maintenance_invalidate()
 	rct_widget *widgets;
 
 	window_get_register(w);
+	window_ride_set_colours();
 
 	widgets = window_ride_page_widgets[w->page];
 	if (w->widgets != widgets) {
@@ -3919,6 +3917,7 @@ static void window_ride_colour_invalidate()
 	int vehicleColourSchemeType;
 
 	window_get_register(w);
+	window_ride_set_colours();
 
 	widgets = window_ride_page_widgets[w->page];
 	if (w->widgets != widgets) {
@@ -4412,6 +4411,7 @@ static void window_ride_music_invalidate()
 	int isMusicActivated;
 
 	window_get_register(w);
+	window_ride_set_colours();
 
 	widgets = window_ride_page_widgets[w->page];
 	if (w->widgets != widgets) {
@@ -4704,6 +4704,7 @@ static void window_ride_measurements_invalidate()
 	rct_widget *widgets;
 
 	window_get_register(w);
+	window_ride_set_colours();
 
 	widgets = window_ride_page_widgets[w->page];
 	if (w->widgets != widgets) {
@@ -5154,6 +5155,7 @@ static void window_ride_graphs_invalidate()
 	int x, y;
 
 	window_get_register(w);
+	window_ride_set_colours();
 
 	widgets = window_ride_page_widgets[w->page];
 	if (w->widgets != widgets) {
@@ -5499,6 +5501,7 @@ static void window_ride_income_invalidate()
 	int primaryItem, secondaryItem;
 
 	window_get_register(w);
+	window_ride_set_colours();
 
 	widgets = window_ride_page_widgets[w->page];
 	if (w->widgets != widgets) {
@@ -5517,11 +5520,11 @@ static void window_ride_income_invalidate()
 	// Primary item
 	w->pressed_widgets &= ~(1 << WIDX_PRIMARY_PRICE_SAME_THROUGHOUT_PARK);
 	w->disabled_widgets &= ~(1 << WIDX_PRIMARY_PRICE);
-	if (
-		!(RCT2_GLOBAL(RCT2_ADDRESS_PARK_FLAGS, uint32) & PARK_FLAGS_PARK_FREE_ENTRY) &&
-		rideEntry->shop_item == 255 &&
-		ride->type != RIDE_TYPE_BATHROOM
-	) {
+
+	//If the park doesn't have free entry, lock the admission price, unless the cheat to unlock all prices is activated.
+	if ((!(RCT2_GLOBAL(RCT2_ADDRESS_PARK_FLAGS, uint32) & PARK_FLAGS_PARK_FREE_ENTRY) && rideEntry->shop_item == 255 && ride->type != RIDE_TYPE_BATHROOM)
+		&& (!gConfigCheat.unlock_all_prices))
+	{
 		w->disabled_widgets |= (1 << WIDX_PRIMARY_PRICE);
 	}
 
@@ -5780,6 +5783,7 @@ static void window_ride_customer_invalidate()
 	rct_widget *widgets;
 
 	window_get_register(w);
+	window_ride_set_colours();
 
 	widgets = window_ride_page_widgets[w->page];
 	if (w->widgets != widgets) {
@@ -5916,6 +5920,25 @@ static void window_ride_customer_paint()
 			STR_BUILT_LAST_YEAR :
 			STR_BUILT_YEARS_AGO;
 	gfx_draw_string_left(dpi, stringId, &age, 0, x, y);
+}
+
+static void window_ride_set_colours()
+{
+	rct_window *w;
+	window_get_register(w);
+
+	if(!gConfigInterface.rct1_colour_scheme)
+	{
+		w->colours[0] = 1;
+		w->colours[1] = 26;
+		w->colours[2] = 11;
+	}
+	else
+	{
+		w->colours[0] = 26;
+		w->colours[1] = 1;
+		w->colours[2] = 11;
+	}
 }
 
 #pragma endregion

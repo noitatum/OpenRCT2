@@ -46,6 +46,7 @@ enum {
 	WINDOW_OPTIONS_PAGE_AUDIO,
 	WINDOW_OPTIONS_PAGE_INPUT,
 	WINDOW_OPTIONS_PAGE_MISC,
+	WINDOW_OPTIONS_PAGE_TWITCH,
 	WINDOW_OPTIONS_PAGE_COUNT
 };
 
@@ -59,6 +60,7 @@ enum WINDOW_OPTIONS_WIDGET_IDX {
 	WIDX_TAB_3,
 	WIDX_TAB_4,
 	WIDX_TAB_5,
+	WIDX_TAB_6,
 
 	WIDX_RESOLUTION,
 	WIDX_RESOLUTION_DROPDOWN,
@@ -68,6 +70,7 @@ enum WINDOW_OPTIONS_WIDGET_IDX {
 	WIDX_GRIDLINES_CHECKBOX,
 	WIDX_CONSTRUCTION_MARKER,
 	WIDX_CONSTRUCTION_MARKER_DROPDOWN,
+	WIDX_HARDWARE_DISPLAY_CHECKBOX,
 	
 	WIDX_LANGUAGE,
 	WIDX_LANGUAGE_DROPDOWN,
@@ -79,6 +82,8 @@ enum WINDOW_OPTIONS_WIDGET_IDX {
 	WIDX_TEMPERATURE_DROPDOWN,
 	WIDX_HEIGHT_LABELS,
 	WIDX_HEIGHT_LABELS_DROPDOWN,
+	WIDX_DATE_FORMAT,
+	WIDX_DATE_FORMAT_DROPDOWN,
 
 	WIDX_SOUND,
 	WIDX_SOUND_DROPDOWN,
@@ -92,6 +97,7 @@ enum WINDOW_OPTIONS_WIDGET_IDX {
 	WIDX_TOOLBAR_SHOW_FINANCES,
 	WIDX_TOOLBAR_SHOW_RESEARCH,
 	WIDX_TOOLBAR_SHOW_CHEATS,
+	WIDX_RCT1_COLOUR_SCHEME,
 
 	WIDX_REAL_NAME_CHECKBOX,
 	WIDX_SAVE_PLUGIN_DATA_CHECKBOX,
@@ -99,11 +105,19 @@ enum WINDOW_OPTIONS_WIDGET_IDX {
 	WIDX_AUTOSAVE_DROPDOWN,
 	WIDX_ALLOW_SUBTYPE_SWITCHING,
 	WIDX_DEBUGGING_TOOLS,
+	WIDX_TEST_UNFINISHED_TRACKS,
+
+	WIDX_CHANNEL_BUTTON,
+	WIDX_FOLLOWER_PEEP_NAMES_CHECKBOX,
+	WIDX_FOLLOWER_PEEP_TRACKING_CHECKBOX,
+	WIDX_CHAT_PEEP_NAMES_CHECKBOX,
+	WIDX_CHAT_PEEP_TRACKING_CHECKBOX,
+	WIDX_NEWS_CHECKBOX,
 	WINDOW_OPTIONS_WIDGETS_SIZE // Marks the end of the widget list, leave as last item
 };
 
 #define WW 310
-#define WH 153
+#define WH 183
 
 static rct_widget window_options_widgets[] = {
 	{ WWT_FRAME,			0,	0,		WW - 1,	0,		WH - 1,	STR_NONE,		STR_NONE },
@@ -115,6 +129,7 @@ static rct_widget window_options_widgets[] = {
 	{ WWT_TAB,				1,	65,		95,		17,		43,		0x2000144E,		STR_NONE },
 	{ WWT_TAB,				1,	96,		126,	17,		43,		0x2000144E,		STR_NONE },
 	{ WWT_TAB,				1,	127,	157,	17,		43,		0x2000144E,		STR_NONE },
+	{ WWT_TAB,				1,	158,	188,	17,		43,		0x2000144E,		STR_NONE },
 
 	// Display tab
 	{ WWT_DROPDOWN,			0,	155,	299,	53,		64,		840,			STR_NONE },	// resolution
@@ -125,6 +140,7 @@ static rct_widget window_options_widgets[] = {
 	{ WWT_CHECKBOX,			0,	10,		299,	99,		110,	STR_GRIDLINES,	STR_GRIDLINES_TIP },
 	{ WWT_DROPDOWN,			0,	155,	299,	113,	124,	STR_NONE,		STR_NONE },	// construction marker
 	{ WWT_DROPDOWN_BUTTON,	0,	288,	298,	114,	123,	876,			STR_NONE },
+	{ WWT_CHECKBOX,			0,	10,		290,	129,	140,	5154,			STR_NONE },
 
 	// Culture / units tab
 	{ WWT_DROPDOWN,			0,	155,	299,	53,		64,		STR_NONE,		STR_NONE },	// language
@@ -137,6 +153,8 @@ static rct_widget window_options_widgets[] = {
 	{ WWT_DROPDOWN_BUTTON,	0,	288,	298,	99,		108,	876,			STR_NONE }, //jjj
 	{ WWT_DROPDOWN,			0,	155,	299,	113,	124,	868,			STR_NONE },	// height labels
 	{ WWT_DROPDOWN_BUTTON,	0,	288,	298,	114,	123,	876,			STR_NONE },
+	{ WWT_DROPDOWN,			0,	155,	299,	128,	139,	STR_NONE,		STR_NONE },	// date format
+	{ WWT_DROPDOWN_BUTTON,	0,	288,	298,	129,	138,	876,			STR_NONE },
 
 	// Audio tab
 	{ WWT_DROPDOWN,			0,	10,		299,	53,		64,		865,			STR_NONE },	// sound
@@ -152,6 +170,7 @@ static rct_widget window_options_widgets[] = {
 	{ WWT_CHECKBOX,			2,	10,		299,	82,		93,		5120,			STR_NONE },
 	{ WWT_CHECKBOX,			2,	10,		299,	97,		108,	5121,			STR_NONE },
 	{ WWT_CHECKBOX,			2,	10,		299,	112,	123,	5147,			STR_NONE },
+	{ WWT_CHECKBOX,			2,	10,		299,	127,	138,	5153,			STR_NONE }, // rct1 colour scheme
 
 	// Misc
 	{ WWT_CHECKBOX,			2,	10,		299,	53,		64,		STR_REAL_NAME,	STR_REAL_NAME_TIP },
@@ -160,11 +179,21 @@ static rct_widget window_options_widgets[] = {
 	{ WWT_DROPDOWN_BUTTON,	0,	288,	298,	84,		93,		876,			STR_NONE },
 	{ WWT_CHECKBOX,			2,	10,		299,	98,		109,	5122,			STR_NONE }, // allow subtype 
 	{ WWT_CHECKBOX,			2,	10,		299,	113,	124,	5150,			STR_NONE }, // enabled debugging tools
+	{ WWT_CHECKBOX,			2,	10,		299,	128,	139,	5155,			5156 }, // test unfinished tracks
+
+	//Twitch tab
+	{ WWT_DROPDOWN_BUTTON,	2,	10,		299,	53,		64,		STR_TWITCH_NAME,			STR_NONE }, // Twitch channel name
+	{ WWT_CHECKBOX,			2,	10,		299,	68,		79,		STR_TWITCH_PEEP_FOLLOWERS,	STR_TWITCH_PEEP_FOLLOWERS_TIP }, // Twitch name peeps by follows
+	{ WWT_CHECKBOX,			2,	10,		299,	83,		94,		STR_TWITCH_FOLLOWERS_TRACK,	STR_TWITCH_FOLLOWERS_TRACK_TIP}, // Twitch information on for follows
+	{ WWT_CHECKBOX,			2,	10,		299,	98,		109,	STR_TWITCH_PEEP_CHAT,		STR_TWITCH_PEEP_CHAT_TIP	  }, // Twitch name peeps by chat
+	{ WWT_CHECKBOX,			2,	10,		299,	113,	124,	STR_TWITCH_CHAT_TRACK,		STR_TWITCH_CHAT_TRACK_TIP	  }, // Twitch information on for chat
+	{ WWT_CHECKBOX,			2,	10,		299,	128,	139,	STR_TWITCH_CHAT_NEWS,		STR_TWITCH_CHAT_NEWS_TIP	  }, // Twitch chat !news as notifications in game
+
 	{ WIDGETS_END },
 };
 
-const int window_options_tab_animation_divisor[] = { 4, 8, 2, 2, 2 };
-const int window_options_tab_animation_frames[] = { 16, 8, 16, 4, 16 };
+const int window_options_tab_animation_divisor[] = { 4, 8, 2, 2, 2, 1 };
+const int window_options_tab_animation_frames[] = { 16, 8, 16, 4, 16, 1 };
 
 static void window_options_set_page(rct_window *w, int page);
 static void window_options_set_pressed_tab(rct_window *w);
@@ -178,6 +207,7 @@ static void window_options_dropdown();
 static void window_options_update(rct_window *w);
 static void window_options_invalidate();
 static void window_options_paint();
+static void window_options_text_input();
 static void window_options_show_dropdown(rct_window *w, rct_widget *widget, int num_items);
 static void window_options_update_height_markers();
 
@@ -201,7 +231,7 @@ static void* window_options_events[] = {
 	window_options_emptysub,
 	window_options_emptysub,
 	window_options_emptysub,
-	window_options_emptysub,
+	window_options_text_input,
 	window_options_emptysub,
 	window_options_emptysub,
 	window_options_emptysub,
@@ -234,6 +264,7 @@ void window_options_open()
 		(1ULL << WIDX_TAB_3) |
 		(1ULL << WIDX_TAB_4) |
 		(1ULL << WIDX_TAB_5) |
+		(1ULL << WIDX_TAB_6) |
 		(1ULL << WIDX_SOUND) |
 		(1ULL << WIDX_SOUND_DROPDOWN) |
 		(1ULL << WIDX_SOUND_CHECKBOX) |
@@ -264,11 +295,22 @@ void window_options_open()
 		(1ULL << WIDX_HEIGHT_LABELS_DROPDOWN) |
 		(1ULL << WIDX_TILE_SMOOTHING_CHECKBOX) |
 		(1ULL << WIDX_GRIDLINES_CHECKBOX) |
+		(1ULL << WIDX_HARDWARE_DISPLAY_CHECKBOX) |
 		(1ULL << WIDX_SAVE_PLUGIN_DATA_CHECKBOX) |
 		(1ULL << WIDX_AUTOSAVE) |
 		(1ULL << WIDX_AUTOSAVE_DROPDOWN) |
 		(1ULL << WIDX_ALLOW_SUBTYPE_SWITCHING) |
-		(1ULL << WIDX_DEBUGGING_TOOLS);
+		(1ULL << WIDX_DEBUGGING_TOOLS) |
+		(1ULL << WIDX_TEST_UNFINISHED_TRACKS) |
+		(1ULL << WIDX_RCT1_COLOUR_SCHEME) |
+		(1ULL << WIDX_DATE_FORMAT) |
+		(1ULL << WIDX_DATE_FORMAT_DROPDOWN) |
+		(1ULL << WIDX_CHANNEL_BUTTON) |
+		(1ULL << WIDX_FOLLOWER_PEEP_NAMES_CHECKBOX) |
+		(1ULL << WIDX_FOLLOWER_PEEP_TRACKING_CHECKBOX) |
+		(1ULL << WIDX_CHAT_PEEP_NAMES_CHECKBOX) |
+		(1ULL << WIDX_CHAT_PEEP_TRACKING_CHECKBOX) |
+		(1ULL << WIDX_NEWS_CHECKBOX);
 
 	w->page = WINDOW_OPTIONS_PAGE_DISPLAY;
 	window_init_scroll_widgets(w);
@@ -297,10 +339,14 @@ static void window_options_mouseup()
 	case WIDX_TAB_3:
 	case WIDX_TAB_4:
 	case WIDX_TAB_5:
+	case WIDX_TAB_6:
 		window_options_set_page(w, widgetIndex - WIDX_TAB_1);
 		break;
 	case WIDX_HOTKEY_DROPDOWN:
 		window_shortcut_keys_open();
+		break;
+	case WIDX_CHANNEL_BUTTON:
+		window_text_input_raw_open(w, widgetIndex, STR_TWITCH_NAME, STR_TWITCH_NAME_DESC, gConfigTwitch.channel, 32);
 		break;
 	case WIDX_SCREEN_EDGE_SCROLLING:
 		gConfigGeneral.edge_scrolling ^= 1;
@@ -325,6 +371,11 @@ static void window_options_mouseup()
 		window_invalidate(w);
 		window_invalidate_by_class(WC_TOP_TOOLBAR);
 		break;
+	case WIDX_RCT1_COLOUR_SCHEME:
+		gConfigInterface.rct1_colour_scheme ^= 1;
+		config_save_default();
+		window_invalidate_all();
+		break;
 	case WIDX_ALLOW_SUBTYPE_SWITCHING:
 		gConfigInterface.allow_subtype_switching ^= 1;
 		config_save_default();
@@ -333,6 +384,11 @@ static void window_options_mouseup()
 		break;
 	case WIDX_DEBUGGING_TOOLS:
 		gConfigGeneral.debugging_tools ^= 1;
+		config_save_default();
+		window_invalidate(w);
+		break;
+	case WIDX_TEST_UNFINISHED_TRACKS:
+		gConfigGeneral.test_unfinished_tracks ^= 1;
 		config_save_default();
 		window_invalidate(w);
 		break;
@@ -355,6 +411,37 @@ static void window_options_mouseup()
 			else 
 				w->viewport->flags &= ~VIEWPORT_FLAG_GRIDLINES;
 		}
+		break;
+	case WIDX_HARDWARE_DISPLAY_CHECKBOX:
+		gConfigGeneral.hardware_display ^= 1;
+		platform_refresh_video();
+		config_save_default();
+		window_invalidate(w);
+		break;
+	case WIDX_FOLLOWER_PEEP_NAMES_CHECKBOX:
+		gConfigTwitch.enable_follower_peep_names ^= 1;
+		config_save_default();
+		window_invalidate(w);
+		break;
+	case WIDX_FOLLOWER_PEEP_TRACKING_CHECKBOX:
+		gConfigTwitch.enable_follower_peep_tracking ^= 1;
+		config_save_default();
+		window_invalidate(w);
+		break;
+	case WIDX_CHAT_PEEP_NAMES_CHECKBOX:
+		gConfigTwitch.enable_chat_peep_names ^= 1;
+		config_save_default();
+		window_invalidate(w);
+		break;
+	case WIDX_CHAT_PEEP_TRACKING_CHECKBOX:
+		gConfigTwitch.enable_chat_peep_tracking ^= 1;
+		config_save_default();
+		window_invalidate(w);
+		break;
+	case WIDX_NEWS_CHECKBOX:
+		gConfigTwitch.enable_news ^= 1;
+		config_save_default();
+		window_invalidate(w);
 		break;
 	case WIDX_SAVE_PLUGIN_DATA_CHECKBOX:
 		gConfigGeneral.save_plugin_data ^= 1;
@@ -523,6 +610,14 @@ static void window_options_mousedown(int widgetIndex, rct_window*w, rct_widget* 
 		window_options_show_dropdown(w, widget, AUTOSAVE_NEVER + 1);
 		gDropdownItemsChecked = 1 << gConfigGeneral.autosave_frequency;
 		break;
+	case WIDX_DATE_FORMAT_DROPDOWN:
+		for (i = 0; i < 2; i++) {
+			gDropdownItemsFormat[i] = 1142;
+			gDropdownItemsArgs[i] = 5162 + i;
+		}
+		window_options_show_dropdown(w, widget, 2);
+		gDropdownItemsChecked = 1 << (gConfigGeneral.date_format);
+		break;
 	}
 }
 
@@ -651,6 +746,13 @@ static void window_options_dropdown()
 			window_invalidate(w);
 		}
 		break;
+	case WIDX_DATE_FORMAT_DROPDOWN:
+		if (dropdownIndex != gConfigGeneral.date_format) {
+			gConfigGeneral.date_format = (uint8)dropdownIndex;
+			config_save_default();
+			gfx_invalidate_screen();
+		}
+		break;
 	}
 }
 
@@ -700,6 +802,12 @@ static void window_options_invalidate()
 		else
 			w->pressed_widgets &= ~(1ULL << WIDX_GRIDLINES_CHECKBOX);
 
+		// show hardware display
+		if (gConfigGeneral.hardware_display)
+			w->pressed_widgets |= (1ULL << WIDX_HARDWARE_DISPLAY_CHECKBOX);
+		else
+			w->pressed_widgets &= ~(1ULL << WIDX_HARDWARE_DISPLAY_CHECKBOX);
+
 		// construction marker: celsius/fahrenheit
 		window_options_widgets[WIDX_CONSTRUCTION_MARKER].image = STR_WHITE + RCT2_GLOBAL(RCT2_ADDRESS_CONFIG_CONSTRUCTION_MARKER, uint8);
 
@@ -711,6 +819,7 @@ static void window_options_invalidate()
 		window_options_widgets[WIDX_GRIDLINES_CHECKBOX].type = WWT_CHECKBOX;
 		window_options_widgets[WIDX_CONSTRUCTION_MARKER].type = WWT_DROPDOWN;
 		window_options_widgets[WIDX_CONSTRUCTION_MARKER_DROPDOWN].type = WWT_DROPDOWN_BUTTON;
+		window_options_widgets[WIDX_HARDWARE_DISPLAY_CHECKBOX].type = WWT_CHECKBOX;
 		break;
 	case WINDOW_OPTIONS_PAGE_CULTURE:
 		// currency: pounds, dollars, etc. (10 total)
@@ -735,6 +844,8 @@ static void window_options_invalidate()
 		window_options_widgets[WIDX_TEMPERATURE_DROPDOWN].type = WWT_DROPDOWN_BUTTON;
 		window_options_widgets[WIDX_HEIGHT_LABELS].type = WWT_DROPDOWN;
 		window_options_widgets[WIDX_HEIGHT_LABELS_DROPDOWN].type = WWT_DROPDOWN_BUTTON;
+		window_options_widgets[WIDX_DATE_FORMAT].type = WWT_DROPDOWN;
+		window_options_widgets[WIDX_DATE_FORMAT_DROPDOWN].type = WWT_DROPDOWN_BUTTON;
 		break;
 	case WINDOW_OPTIONS_PAGE_AUDIO:
 		currentSoundDevice = RCT2_GLOBAL(RCT2_ADDRESS_CURRENT_SOUND_DEVICE, sint32);
@@ -768,12 +879,14 @@ static void window_options_invalidate()
 		widget_set_checkbox_value(w, WIDX_TOOLBAR_SHOW_FINANCES, gConfigInterface.toolbar_show_finances);
 		widget_set_checkbox_value(w, WIDX_TOOLBAR_SHOW_RESEARCH, gConfigInterface.toolbar_show_research);
 		widget_set_checkbox_value(w, WIDX_TOOLBAR_SHOW_CHEATS, gConfigInterface.toolbar_show_cheats);
+		widget_set_checkbox_value(w, WIDX_RCT1_COLOUR_SCHEME, gConfigInterface.rct1_colour_scheme);
 
 		window_options_widgets[WIDX_SCREEN_EDGE_SCROLLING].type = WWT_CHECKBOX;
 		window_options_widgets[WIDX_HOTKEY_DROPDOWN].type = WWT_DROPDOWN_BUTTON;
 		window_options_widgets[WIDX_TOOLBAR_SHOW_FINANCES].type = WWT_CHECKBOX;
 		window_options_widgets[WIDX_TOOLBAR_SHOW_RESEARCH].type = WWT_CHECKBOX;
 		window_options_widgets[WIDX_TOOLBAR_SHOW_CHEATS].type = WWT_CHECKBOX;
+		window_options_widgets[WIDX_RCT1_COLOUR_SCHEME].type = WWT_CHECKBOX;
 		break;
 	case WINDOW_OPTIONS_PAGE_MISC:
 		widget_set_checkbox_value(w, WIDX_ALLOW_SUBTYPE_SWITCHING, gConfigInterface.allow_subtype_switching);
@@ -801,6 +914,7 @@ static void window_options_invalidate()
 			window_options_widgets[WIDX_SAVE_PLUGIN_DATA_CHECKBOX].type = WWT_CHECKBOX;
 
 		widget_set_checkbox_value(w, WIDX_DEBUGGING_TOOLS, gConfigGeneral.debugging_tools);
+		widget_set_checkbox_value(w, WIDX_TEST_UNFINISHED_TRACKS, gConfigGeneral.test_unfinished_tracks);
 
 		window_options_widgets[WIDX_REAL_NAME_CHECKBOX].type = WWT_CHECKBOX;
 		window_options_widgets[WIDX_SAVE_PLUGIN_DATA_CHECKBOX].type = WWT_CHECKBOX;
@@ -808,6 +922,22 @@ static void window_options_invalidate()
 		window_options_widgets[WIDX_AUTOSAVE_DROPDOWN].type = WWT_DROPDOWN_BUTTON;
 		window_options_widgets[WIDX_ALLOW_SUBTYPE_SWITCHING].type = WWT_CHECKBOX;
 		window_options_widgets[WIDX_DEBUGGING_TOOLS].type = WWT_CHECKBOX;
+		window_options_widgets[WIDX_TEST_UNFINISHED_TRACKS].type = WWT_CHECKBOX;
+		break;
+	case WINDOW_OPTIONS_PAGE_TWITCH:
+		widget_set_checkbox_value(w, WIDX_FOLLOWER_PEEP_NAMES_CHECKBOX, gConfigTwitch.enable_follower_peep_names);
+		widget_set_checkbox_value(w, WIDX_FOLLOWER_PEEP_TRACKING_CHECKBOX, gConfigTwitch.enable_follower_peep_tracking);
+		widget_set_checkbox_value(w, WIDX_CHAT_PEEP_NAMES_CHECKBOX, gConfigTwitch.enable_chat_peep_names);
+		widget_set_checkbox_value(w, WIDX_CHAT_PEEP_TRACKING_CHECKBOX, gConfigTwitch.enable_chat_peep_tracking);
+		widget_set_checkbox_value(w, WIDX_NEWS_CHECKBOX, gConfigTwitch.enable_news);
+
+		window_options_widgets[WIDX_CHANNEL_BUTTON].type = WWT_DROPDOWN_BUTTON;
+		window_options_widgets[WIDX_FOLLOWER_PEEP_NAMES_CHECKBOX].type = WWT_CHECKBOX;
+		window_options_widgets[WIDX_FOLLOWER_PEEP_TRACKING_CHECKBOX].type = WWT_CHECKBOX;
+		window_options_widgets[WIDX_CHAT_PEEP_NAMES_CHECKBOX].type = WWT_CHECKBOX;
+		window_options_widgets[WIDX_CHAT_PEEP_TRACKING_CHECKBOX].type = WWT_CHECKBOX;
+		window_options_widgets[WIDX_NEWS_CHECKBOX].type = WWT_CHECKBOX;
+		
 		break;
 	}
 }
@@ -857,6 +987,15 @@ static void window_options_paint()
 		gfx_draw_string_left(dpi, STR_DISTANCE_AND_SPEED, w, 0, w->x + 10, w->y + window_options_widgets[WIDX_DISTANCE].top + 1);
 		gfx_draw_string_left(dpi, STR_TEMPERATURE, w, 0, w->x + 10, w->y + window_options_widgets[WIDX_TEMPERATURE].top + 1);
 		gfx_draw_string_left(dpi, STR_HEIGHT_LABELS, w, 0, w->x + 10, w->y + window_options_widgets[WIDX_HEIGHT_LABELS].top + 1);
+		gfx_draw_string_left(dpi, 5161, w, 0, w->x + 10, w->y + window_options_widgets[WIDX_DATE_FORMAT].top + 1);
+		gfx_draw_string_left(
+			dpi,
+			5162 + gConfigGeneral.date_format,
+			NULL,
+			12,
+			w->x + window_options_widgets[WIDX_DATE_FORMAT].left + 1,
+			w->y + window_options_widgets[WIDX_DATE_FORMAT].top
+			);
 		break;
 	case WINDOW_OPTIONS_PAGE_AUDIO:
 		gfx_draw_string_left(dpi, 2738, w, 12, w->x + 10, w->y + window_options_widgets[WIDX_TITLE_MUSIC].top + 1);
@@ -905,6 +1044,26 @@ static void window_options_update_height_markers()
 	gfx_invalidate_screen();
 }
 
+static void window_options_text_input(){
+	short widgetIndex;
+	rct_window *w;
+	char _cl;
+	char* text;
+
+	window_text_input_get_registers(w, widgetIndex, _cl, text);
+	if (_cl == 0)
+	{
+		return;
+	}
+
+	if (widgetIndex == WIDX_CHANNEL_BUTTON){
+		if (gConfigTwitch.channel != NULL)
+			free(gConfigTwitch.channel);
+		gConfigTwitch.channel = _strdup(text);
+		config_save_default();
+	}
+}
+
 #pragma region Common
 
 static void window_options_set_page(rct_window *w, int page)
@@ -948,6 +1107,7 @@ static void window_options_draw_tab_images(rct_drawpixelinfo *dpi, rct_window *w
 	window_options_draw_tab_image(dpi, w, WINDOW_OPTIONS_PAGE_AUDIO, 5335);
 	window_options_draw_tab_image(dpi, w, WINDOW_OPTIONS_PAGE_INPUT, 5201);
 	window_options_draw_tab_image(dpi, w, WINDOW_OPTIONS_PAGE_MISC, 5205);
+	window_options_draw_tab_image(dpi, w, WINDOW_OPTIONS_PAGE_TWITCH, SPR_G2_TAB_TWITCH);
 }
 
 #pragma endregion

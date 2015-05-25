@@ -29,6 +29,7 @@
 #include "../interface/window.h"
 #include "../interface/viewport.h"
 #include "../localisation/localisation.h"
+#include "../network/twitch.h"
 #include "../scenario.h"
 #include "../world/scenery.h"
 #include "../world/banner.h"
@@ -65,10 +66,15 @@ enum {
 typedef enum {
 	DDIDX_LOAD_GAME = 0,
 	DDIDX_SAVE_GAME = 1,
+	// seperator
 	DDIDX_ABOUT = 3,
 	DDIDX_OPTIONS = 4,
 	DDIDX_SCREENSHOT = 5,
-	DDIDX_QUIT_GAME = 7,
+	// seperator
+	DDIDX_QUIT_TO_MENU = 7,
+	DDIDX_EXIT_OPENRCT2 = 8,
+	// seperator
+	DDIDX_ENABLE_TWITCH = 10
 } FILE_MENU_DDIDX;
 
 typedef enum {
@@ -203,6 +209,8 @@ void toggle_land_window(rct_window *topToolbar, int widgetIndex);
 void toggle_clear_scenery_window(rct_window *topToolbar, int widgetIndex);
 void toggle_water_window(rct_window *topToolbar, int widgetIndex);
 
+static bool _menuDropdownIncludesTwitch;
+
 /**
  * Creates the main game top toolbar window.
  *  rct2: 0x0066B485 (part of 0x0066B3E8)
@@ -221,21 +229,6 @@ void window_top_toolbar_open()
 	window->widgets = window_top_toolbar_widgets;
 
 	window_init_scroll_widgets(window);
-
-	if(!gConfigInterface.rct1_colour_scheme)
-	{
-		window->colours[0] = 7;
-		window->colours[1] = 12;
-		window->colours[2] = 24;
-		window->colours[3] = 1;
-	}
-	else
-	{
-		window->colours[0] = 1;
-		window->colours[1] = 1;
-		window->colours[2] = 1;
-		window->colours[3] = 1;
-	}
 }
 
 /**
@@ -320,17 +313,19 @@ static void window_top_toolbar_mousedown(int widgetIndex, rct_window*w, rct_widg
 
 	switch (widgetIndex) {
 	case WIDX_FILE_MENU:
+		_menuDropdownIncludesTwitch = false;
 		if (RCT2_GLOBAL(RCT2_ADDRESS_SCREEN_FLAGS, uint8) & (SCREEN_FLAGS_TRACK_DESIGNER | SCREEN_FLAGS_TRACK_MANAGER)) {
 			gDropdownItemsFormat[0] = STR_ABOUT;
 			gDropdownItemsFormat[1] = STR_OPTIONS;
 			gDropdownItemsFormat[2] = STR_SCREENSHOT;
 			gDropdownItemsFormat[3] = 0;
 			gDropdownItemsFormat[4] = STR_QUIT_TRACK_DESIGNS_MANAGER;
+			gDropdownItemsFormat[5] = STR_EXIT_OPENRCT2;
 
 			if (RCT2_GLOBAL(RCT2_ADDRESS_SCREEN_FLAGS, uint8) & SCREEN_FLAGS_TRACK_DESIGNER)
 				gDropdownItemsFormat[4] = STR_QUIT_ROLLERCOASTER_DESIGNER;
 
-			numItems = 5;
+			numItems = 6;
 		} else if (RCT2_GLOBAL(RCT2_ADDRESS_SCREEN_FLAGS, uint8) & SCREEN_FLAGS_SCENARIO_EDITOR) {
 			gDropdownItemsFormat[0] = STR_LOAD_LANDSCAPE;
 			gDropdownItemsFormat[1] = STR_SAVE_LANDSCAPE;
@@ -340,7 +335,8 @@ static void window_top_toolbar_mousedown(int widgetIndex, rct_window*w, rct_widg
 			gDropdownItemsFormat[5] = STR_SCREENSHOT;
 			gDropdownItemsFormat[6] = 0;
 			gDropdownItemsFormat[7] = STR_QUIT_SCENARIO_EDITOR;
-			numItems = 8;
+			gDropdownItemsFormat[8] = STR_EXIT_OPENRCT2;
+			numItems = 9;
 		} else {
 			gDropdownItemsFormat[0] = STR_LOAD_GAME;
 			gDropdownItemsFormat[1] = STR_SAVE_GAME;
@@ -349,8 +345,19 @@ static void window_top_toolbar_mousedown(int widgetIndex, rct_window*w, rct_widg
 			gDropdownItemsFormat[4] = STR_OPTIONS;
 			gDropdownItemsFormat[5] = STR_SCREENSHOT;
 			gDropdownItemsFormat[6] = 0;
-			gDropdownItemsFormat[7] = STR_QUIT_GAME;
-			numItems = 8;
+			gDropdownItemsFormat[7] = STR_QUIT_TO_MENU;
+			gDropdownItemsFormat[8] = STR_EXIT_OPENRCT2;
+			numItems = 9;
+
+		#ifndef DISABLE_TWITCH
+			if (gConfigTwitch.channel != NULL && gConfigTwitch.channel[0] != 0) {
+				_menuDropdownIncludesTwitch = true;
+				gDropdownItemsFormat[9] = 0;
+				gDropdownItemsFormat[10] = 1156;
+				gDropdownItemsArgs[10] = STR_TWITCH_ENABLE;
+				numItems = 11;
+			}
+		#endif
 		}
 		window_dropdown_show_text(
 			w->x + widget->left,
@@ -360,6 +367,9 @@ static void window_top_toolbar_mousedown(int widgetIndex, rct_window*w, rct_widg
 			DROPDOWN_FLAG_STAY_OPEN,
 			numItems
 		);
+
+		if (_menuDropdownIncludesTwitch && gTwitchEnable)
+			gDropdownItemsChecked |= (1 << 10);
 		break;
 	case WIDX_VIEW_MENU:
 		top_toolbar_init_view_menu(w, widget);
@@ -428,10 +438,16 @@ static void window_top_toolbar_dropdown()
 		case DDIDX_SCREENSHOT:
 			RCT2_GLOBAL(RCT2_ADDRESS_SCREENSHOT_COUNTDOWN, sint8) = 10;
 			break;
-		case DDIDX_QUIT_GAME:
+		case DDIDX_QUIT_TO_MENU:
 			window_close_by_class(WC_MANAGE_TRACK_DESIGN);
 			window_close_by_class(WC_TRACK_DELETE_PROMPT);
 			game_do_command(0, 1, 0, 0, GAME_COMMAND_LOAD_OR_QUIT, 1, 0);
+			break;
+		case DDIDX_EXIT_OPENRCT2:
+			rct2_quit();
+			break;
+		case DDIDX_ENABLE_TWITCH:
+			gTwitchEnable = !gTwitchEnable;
 			break;
 		}
 		break;
@@ -471,6 +487,21 @@ static void window_top_toolbar_invalidate()
 	rct_widget *widget;
 
 	window_get_register(w);
+
+	if(!gConfigInterface.rct1_colour_scheme)
+	{
+		w->colours[0] = 7;
+		w->colours[1] = 12;
+		w->colours[2] = 24;
+		w->colours[3] = 1;
+	}
+	else
+	{
+		w->colours[0] = 1;
+		w->colours[1] = 1;
+		w->colours[2] = 1;
+		w->colours[3] = 1;
+	}
 
 	// Enable / disable buttons
 	window_top_toolbar_widgets[WIDX_PAUSE].type = WWT_TRNBTN;
@@ -640,17 +671,19 @@ static void window_top_toolbar_paint()
 		y = w->y + window_top_toolbar_widgets[WIDX_FASTFORWARD].top + 0;
 		if (widget_is_pressed(w, WIDX_FASTFORWARD))
 			y++;
-		//imgId = 5229;//SPR_NEXT;
-		//gfx_draw_sprite(dpi, imgId, x - 1, y - 2, 0);
-		imgId = SPR_NEXT;
-		gfx_draw_sprite(dpi, imgId, x + 4, y, 0);
+		imgId = SPR_G2_FASTFORWARD;
+		gfx_draw_sprite(dpi, imgId, x + 6, y + 3, 0);
 
-		char speedStr[] = { FORMAT_MEDIUMFONT, FORMAT_OUTLINE,
-			(gGameSpeed >= 5 ? FORMAT_YELLOW : FORMAT_GREEN),
-			175, (gGameSpeed >= 2 ? 175 : '\0'), (gGameSpeed >= 3 ? 175 : '\0'), (gGameSpeed >= 4 ? 175 : '\0'), '\0'
-		};
-		format_string_raw(RCT2_ADDRESS(RCT2_ADDRESS_COMMON_STRING_FORMAT_BUFFER, char), speedStr, NULL);
-		gfx_draw_string(dpi, speedStr, 0, x + 5, y + 14);
+
+		for (int i = 0; i < gGameSpeed && gGameSpeed <= 4; i++) {
+			gfx_draw_sprite(dpi, SPR_G2_SPEED_ARROW, x + 5 + i * 5, y + 15, 0);
+		}
+		for (int i = 0; i < 3 && i < gGameSpeed - 4 && gGameSpeed >= 5; i++) {
+			gfx_draw_sprite(dpi, SPR_G2_HYPER_ARROW, x + 5 + i * 6, y + 15, 0);
+		}
+		/*if (gGameSpeed >= 8) {
+			gfx_draw_sprite(dpi, SPR_G2_HYPER_ARROWS, x + 5, y + 15, 0);
+		}*/
 	}
 
 	// Draw cheats button
@@ -1354,7 +1387,7 @@ static void window_top_toolbar_scenery_tool_down(short x, short y, rct_window* w
 
 				RCT2_GLOBAL(RCT2_ADDRESS_GAME_COMMAND_ERROR_STRING_ID, rct_string_id) = 1161;
 
-				int cost = game_do_command(cur_grid_x, ebx, cur_grid_y, parameter_2, GAME_COMMAND_15, RCT2_GLOBAL(0x00F64EC0, uint8) | (parameter_3 & 0xFFFF0000), RCT2_GLOBAL(RCT2_ADDRESS_SCENERY_Z_COORDINATE, sint16));
+				int cost = game_do_command(cur_grid_x, ebx, cur_grid_y, parameter_2, GAME_COMMAND_PLACE_SCENERY, RCT2_GLOBAL(0x00F64EC0, uint8) | (parameter_3 & 0xFFFF0000), RCT2_GLOBAL(RCT2_ADDRESS_SCENERY_Z_COORDINATE, sint16));
 
 
 				RCT2_GLOBAL(0x009A8C29, uint8) &= ~1;

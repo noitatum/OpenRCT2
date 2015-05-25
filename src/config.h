@@ -105,6 +105,11 @@ enum {
 	AUTOSAVE_NEVER
 };
 
+enum {
+	DATE_FORMAT_DMY,
+	DATE_FORMAT_MDY
+};
+
 typedef struct {
 	uint8 play_intro;
 	uint8 confirmation_prompt;
@@ -130,6 +135,10 @@ typedef struct {
 	uint16 language;
 	uint8 window_snap_proximity;
 	uint8 autosave_frequency;
+	uint8 hardware_display;
+	uint8 test_unfinished_tracks;
+	uint8 no_test_crashes;
+	uint8 date_format;
 } general_configuration;
 
 typedef struct {
@@ -138,6 +147,7 @@ typedef struct {
 	uint8 toolbar_show_cheats;
 	uint8 allow_subtype_switching;
 	uint8 rct1_colour_scheme;
+	uint8 console_small_font;
 } interface_configuration;
 
 typedef struct {
@@ -152,8 +162,17 @@ typedef struct {
 	uint8 fast_lift_hill;
 	uint8 disable_brakes_failure;
 	uint8 disable_all_breakdowns;
+	uint8 unlock_all_prices;
 } cheat_configuration;
 
+typedef struct {
+	utf8string channel;
+	uint8 enable_follower_peep_names;
+	uint8 enable_follower_peep_tracking;
+	uint8 enable_chat_peep_names;
+	uint8 enable_chat_peep_tracking;
+	uint8 enable_news;
+} twitch_configuration;
 
 typedef struct {
 	uint8 key;
@@ -164,6 +183,7 @@ extern general_configuration gConfigGeneral;
 extern interface_configuration gConfigInterface;
 extern sound_configuration gConfigSound;
 extern cheat_configuration gConfigCheat;
+extern twitch_configuration gConfigTwitch;
 
 extern uint16 gShortcutKeys[SHORTCUT_COUNT];
 

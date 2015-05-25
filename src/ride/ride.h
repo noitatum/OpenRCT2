@@ -362,7 +362,10 @@ enum {
 	RIDE_LIFECYCLE_16 = 1 << 16,
 	RIDE_LIFECYCLE_CABLE_LIFT = 1 << 17,
 	RIDE_LIFECYCLE_18 = 1 << 18,
-	RIDE_LIFECYCLE_SIX_FLAGS = 1 << 19
+	RIDE_LIFECYCLE_SIX_FLAGS = 1 << 19,
+
+	// Used to bring up the "real" ride window after a crash. Can be removed once vehicle_update is decompiled
+	RIDE_LIFECYCLE_CRASHED_WINDOW_OPENED = 1 << 20
 };
 
 enum {
@@ -731,6 +734,7 @@ void reset_all_ride_build_dates();
 void ride_update_favourited_stat();
 void ride_update_all();
 void ride_check_all_reachable();
+void ride_update_satisfaction(rct_ride* ride, uint8 happiness);
 void ride_update_popularity(rct_ride* ride, uint8 pop_amount);
 int sub_6CAF80(int rideIndex, rct_xy_element *output);
 int track_get_next(rct_xy_element *input, rct_xy_element *output);

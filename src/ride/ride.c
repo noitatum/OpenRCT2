@@ -21,6 +21,7 @@
 #include "../addresses.h"
 #include "../audio/audio.h"
 #include "../audio/mixer.h"
+#include "../common.h"
 #include "../config.h"
 #include "../game.h"
 #include "../input.h"
@@ -149,7 +150,7 @@ rct_ride_type *ride_get_entry(rct_ride *ride)
 */
 void reset_type_to_ride_entry_index_map(){
 	uint8* typeToRideEntryIndexMap = RCT2_ADDRESS(0x009E32F8, uint8);
-	memset(typeToRideEntryIndexMap, 0xFF, 90);
+	memset(typeToRideEntryIndexMap, 0xFF, 91);
 }
 
 uint8 *get_ride_entry_indices_for_ride_type(uint8 rideType)
@@ -1324,6 +1325,30 @@ static void ride_update(int rideIndex)
 			ride_breakdown_status_update(rideIndex);
 
 	ride_inspection_update(ride);
+
+	// Used to bring up the "real" ride window after a crash. Can be removed once vehicle_update is decompiled
+	if (ride->lifecycle_flags & RIDE_LIFECYCLE_CRASHED) {
+		if ((ride->lifecycle_flags & RIDE_LIFECYCLE_CRASHED_WINDOW_OPENED) == 0) {
+			ride->lifecycle_flags |= RIDE_LIFECYCLE_CRASHED_WINDOW_OPENED;
+			window_ride_main_open(rideIndex);
+		}
+	}
+	else if (ride->lifecycle_flags & RIDE_LIFECYCLE_CRASHED_WINDOW_OPENED) {
+		ride->lifecycle_flags &= ~RIDE_LIFECYCLE_CRASHED_WINDOW_OPENED;
+	}
+
+	if (ride->status == RIDE_STATUS_TESTING && gConfigGeneral.no_test_crashes) {
+		for (int i = 0; i < ride->num_vehicles; i++) {
+			rct_vehicle *vehicle = &(g_sprite_list[ride->vehicles[i]].vehicle);
+
+			if (vehicle->status == VEHICLE_STATUS_CRASHED || vehicle->status == VEHICLE_STATUS_CRASHING) {
+				ride_set_status(rideIndex, RIDE_STATUS_CLOSED);
+				ride_set_status(rideIndex, RIDE_STATUS_CLOSED);
+				ride_set_status(rideIndex, RIDE_STATUS_TESTING);
+				break;
+			}
+		}
+	}
 }
 
 /**
@@ -1357,6 +1382,23 @@ static void ride_chairlift_update(rct_ride *ride)
 	y = (ride->var_13C >> 8) * 32;
 	z = ride->var_13F * 8;
 	map_invalidate_tile(x, y, z, z + (4 * 8));
+}
+
+/**
+ * rct2: 0x0069A3A2
+ * edi: ride (in code as bytes offset from start of rides list)
+ * bl: happiness
+ */
+void ride_update_satisfaction(rct_ride* ride, uint8 happiness) {
+	ride->satisfaction_next += happiness;
+	ride->satisfaction_time_out++;
+	if (ride->satisfaction_time_out >= 20) {
+		ride->satisfaction = ride->satisfaction_next >> 2;
+		ride->satisfaction_next = 0;
+		ride->satisfaction_time_out = 0;
+		ride->window_invalidate_flags |= RIDE_INVALIDATE_RIDE_CUSTOMER;
+
+	}
 }
 
 /* rct2: 0x0069A3D7
@@ -1940,6 +1982,45 @@ rct_peep *ride_get_assigned_mechanic(rct_ride *ride)
 
 #pragma region Music functions
 
+#define MAKE_TUNEID_LIST(...) (uint8[]){(countof(((uint8[]){__VA_ARGS__}))), __VA_ARGS__}
+
+//0x009AEF28
+uint8 *ride_music_style_tuneids[] = {
+	MAKE_TUNEID_LIST(13), // MUSIC_STYLE_DODGEMS_BEAT
+	MAKE_TUNEID_LIST(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), // MUSIC_STYLE_FAIRGROUND_ORGAN
+	MAKE_TUNEID_LIST(15), // MUSIC_STYLE_ROMAN_FANFARE
+	MAKE_TUNEID_LIST(16), // MUSIC_STYLE_ORIENTAL
+	MAKE_TUNEID_LIST(17), // MUSIC_STYLE_MARTIAN
+	MAKE_TUNEID_LIST(18), // MUSIC_STYLE_JUNGLE_DRUMS
+	MAKE_TUNEID_LIST(19), // MUSIC_STYLE_EGYPTIAN
+	MAKE_TUNEID_LIST(20), // MUSIC_STYLE_TOYLAND
+	MAKE_TUNEID_LIST(21), // MUSIC_STYLE_8
+	MAKE_TUNEID_LIST(22), // MUSIC_STYLE_SPACE
+	MAKE_TUNEID_LIST(23), // MUSIC_STYLE_HORROR
+	MAKE_TUNEID_LIST(24), // MUSIC_STYLE_TECHNO
+	MAKE_TUNEID_LIST(25), // MUSIC_STYLE_GENTLE
+	MAKE_TUNEID_LIST(26), // MUSIC_STYLE_SUMMER
+	MAKE_TUNEID_LIST(27), // MUSIC_STYLE_WATER
+	MAKE_TUNEID_LIST(28), // MUSIC_STYLE_WILD_WEST
+	MAKE_TUNEID_LIST(29), // MUSIC_STYLE_JURASSIC
+	MAKE_TUNEID_LIST(30), // MUSIC_STYLE_ROCK
+	MAKE_TUNEID_LIST(31), // MUSIC_STYLE_RAGTIME
+	MAKE_TUNEID_LIST(32), // MUSIC_STYLE_FANTASY
+	MAKE_TUNEID_LIST(33), // MUSIC_STYLE_ROCK_STYLE_2
+	MAKE_TUNEID_LIST(34), // MUSIC_STYLE_ICE
+	MAKE_TUNEID_LIST(35), // MUSIC_STYLE_SNOW
+	MAKE_TUNEID_LIST(36), // MUSIC_STYLE_CUSTOM_MUSIC_1
+	MAKE_TUNEID_LIST(37), // MUSIC_STYLE_CUSTOM_MUSIC_2
+	MAKE_TUNEID_LIST(38), // MUSIC_STYLE_MEDIEVAL
+	MAKE_TUNEID_LIST(39), // MUSIC_STYLE_URBAN
+	MAKE_TUNEID_LIST(40), // MUSIC_STYLE_ORGAN
+	MAKE_TUNEID_LIST(41), // MUSIC_STYLE_MECHANICAL
+	MAKE_TUNEID_LIST(42), // MUSIC_STYLE_MODERN
+	MAKE_TUNEID_LIST(43), // MUSIC_STYLE_PIRATES
+	MAKE_TUNEID_LIST(44), // MUSIC_STYLE_ROCK_STYLE_3
+	MAKE_TUNEID_LIST(45), // MUSIC_STYLE_CANDY_STYLE
+};
+
 /**
  *
  *  rct2: 0x006ABE85
@@ -1991,7 +2072,7 @@ static void ride_music_update(int rideIndex)
 
 	// Select random tune from available tunes for a music style (of course only merry-go-rounds have more than one tune)
 	if (ride->music_tune_id == 255) {
-		uint8 *musicStyleTunes = RCT2_ADDRESS(0x009AEF28, uint8*)[ride->music];
+		uint8 *musicStyleTunes = ride_music_style_tuneids[ride->music];
 		uint8 numTunes = *musicStyleTunes++;
 		ride->music_tune_id = musicStyleTunes[scenario_rand() % numTunes];
 		ride->music_position = 0;
@@ -2672,8 +2753,8 @@ int ride_music_params_update(sint16 x, sint16 y, sint16 z, uint8 rideIndex, uint
 				ride_music++;
 				channel++;
 				if (channel >= AUDIO_MAX_RIDE_MUSIC) {
-					rct_ride_music_info* ride_music_info = &RCT2_GLOBAL(0x009AF1C8, rct_ride_music_info*)[*tuneId];
-					a1 = position + ride_music_info->var_4;
+					rct_ride_music_info* ride_music_info = ride_music_info_list[*tuneId];
+					a1 = position + ride_music_info->offset;
 					goto label51;
 				}
 			}
@@ -2696,7 +2777,7 @@ int ride_music_params_update(sint16 x, sint16 y, sint16 z, uint8 rideIndex, uint
 			RCT2_GLOBAL(0x014241BC, uint32) = 0;
 #endif
 		label51:
-			if (a1 < RCT2_GLOBAL(0x009AF1C8, rct_ride_music_info*)[*tuneId].var_0) {
+			if (a1 < ride_music_info_list[*tuneId]->length) {
 				position = a1;
 				rct_ride_music_params* ride_music_params = gRideMusicParamsListEnd;//RCT2_GLOBAL(0x009AF42C, rct_ride_music_params*);
 				if (ride_music_params < &gRideMusicParamsList[AUDIO_MAX_RIDE_MUSIC]/*(rct_ride_music_params*)0x009AF46C*/) {
@@ -2715,9 +2796,9 @@ int ride_music_params_update(sint16 x, sint16 y, sint16 z, uint8 rideIndex, uint
 		} else {
 		label58:
 			;
-			rct_ride_music_info* ride_music_info = &RCT2_GLOBAL(0x009AF1C8, rct_ride_music_info*)[*tuneId];
-			position += ride_music_info->var_4;
-			if (position < ride_music_info->var_0) {
+			rct_ride_music_info* ride_music_info = ride_music_info_list[*tuneId];
+			position += ride_music_info->offset;
+			if (position < ride_music_info->length) {
 				return position;
 			} else {
 				*tuneId = 0xFF;
@@ -2727,6 +2808,58 @@ int ride_music_params_update(sint16 x, sint16 y, sint16 z, uint8 rideIndex, uint
 	}
 	return position;
 }
+
+#define INIT_MUSIC_INFO(pathid, offset, length, unknown) (rct_ride_music_info[]){length, offset, pathid, unknown}
+
+//0x009AF1C8
+rct_ride_music_info* ride_music_info_list[] = {
+	INIT_MUSIC_INFO(PATH_ID_CSS4, 1378, 8139054, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS5, 1378, 7796656, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS6, 1378, 15787850, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS7, 1378, 15331658, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS8, 1378, 17503414, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS9, 1378, 7005802, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS10, 1378, 0, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS11, 1378, 7023288, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS12, 1378, 2767948, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS13, 1378, 3373390, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS14, 1378, 20783042, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS15, 1378, 10009312, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS16, 1378, 0, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS3, 689, 1244886, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS17, 2756, -1, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS18, 2756, 8429568, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS19, 2756, 10143784, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS20, 2756, 12271656, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS21, 2756, 9680968, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS22, 2756, 10062056, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS23, 2756, 11067432, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS24, 2756, 12427456, 0),
+	INIT_MUSIC_INFO(PATH_ID_CSS25, 2756, 15181512, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS26, 2756, 10694816, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS27, 2756, 10421232, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS28, 2756, 13118376, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS29, 2756, 15310892, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS30, 2756, 10215464, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS31, 2756, 11510316, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS32, 2756, 11771944, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS33, 2756, 10759724, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS34, 2756, 14030716, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS35, 2756, 11642576, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS36, 2756, 8953764, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS37, 2756, 13303852, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS38, 2756, 10093888, 1),
+	INIT_MUSIC_INFO(PATH_ID_CUSTOM1, 2756, 16620, 1),
+	INIT_MUSIC_INFO(PATH_ID_CUSTOM2, 2756, 13055722, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS39, 2756, 7531564, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS40, 1378, 5291306, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS41, 2756, 27860700, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS42, 2756, 6774090, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS43, 2756, 15630412, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS44, 2756, 8209704, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS45, 2756, 10006740, 1),
+	INIT_MUSIC_INFO(PATH_ID_CSS46, 2756, 6772776, 1),
+};
 
 /**
 *  Play/update ride music based on structs updated in 0x006BC3AC
@@ -2746,7 +2879,7 @@ void ride_music_update_final()
 					rct_ride_music_params* ride_music_params = &gRideMusicParamsList[0];//&RCT2_GLOBAL(0x009AF430, rct_ride_music_params);
 					while (ride_music_params < gRideMusicParamsListEnd/*RCT2_GLOBAL(0x009AF42C, rct_ride_music_params*)*/) {
 						if (ride_music_params->rideid != (uint8)-1) {
-							rct_ride_music_info* ride_music_info = &RCT2_GLOBAL(0x009AF1C8, rct_ride_music_info*)[ride_music_params->tuneid];
+							rct_ride_music_info* ride_music_info = ride_music_info_list[ride_music_params->tuneid];
 							if (RCT2_ADDRESS(0x009AA0B1, uint8*)[ride_music_info->pathid]) { // file_on_cdrom[]
 								v8++;
 								if (v9 >= ride_music_params->volume) {
@@ -2829,10 +2962,10 @@ void ride_music_update_final()
 							ride_music++;
 							channel++;
 							if (channel >= AUDIO_MAX_RIDE_MUSIC) {
-								rct_ride_music_info* ride_music_info = &RCT2_GLOBAL(0x009AF1C8, rct_ride_music_info*)[ride_music_params->tuneid];
+								rct_ride_music_info* ride_music_info = ride_music_info_list[ride_music_params->tuneid];
 #ifdef USE_MIXER
 								rct_ride_music* ride_music = &gRideMusicList[ebx];
-								ride_music->sound_channel = Mixer_Play_Music(ride_music_info->pathid, true);
+								ride_music->sound_channel = Mixer_Play_Music(ride_music_info->pathid, MIXER_LOOP_NONE, true);
 								if (ride_music->sound_channel) {
 									ride_music->volume = ride_music_params->volume;
 									ride_music->pan = ride_music_params->pan;
@@ -3490,6 +3623,131 @@ rct_map_element *loc_6B4F6B(int rideIndex, int x, int y)
 	return NULL;
 }
 
+int ride_is_valid_for_test(int rideIndex, int goingToBeOpen, int isApplying)
+{
+	int stationIndex;
+	rct_ride *ride;
+	rct_xy_element trackElement, problematicTrackElement;
+
+	ride = GET_RIDE(rideIndex);
+
+	window_close_by_class(WC_RIDE_CONSTRUCTION);
+
+	stationIndex = ride_mode_check_station_present(ride);
+	if (stationIndex == -1)return 0;
+
+	if (!ride_mode_check_valid_station_numbers(ride))
+		return 0;
+
+	if (!ride_check_for_entrance_exit(rideIndex)) {
+		loc_6B51C0(rideIndex);
+		return 0;
+	}
+
+	if (goingToBeOpen && isApplying) {
+		sub_6B5952(rideIndex);
+		ride->lifecycle_flags |= RIDE_LIFECYCLE_EVER_BEEN_OPENED;
+	}
+
+	// z = ride->station_heights[i] * 8;
+	trackElement.x = (ride->station_starts[stationIndex] & 0xFF) * 32;
+	trackElement.y = (ride->station_starts[stationIndex] >> 8) * 32;
+	trackElement.element = loc_6B4F6B(rideIndex, trackElement.x, trackElement.y);
+	if (trackElement.element == NULL) {
+		// Maze is strange, station start is 0... investigation required
+		if (ride->type != RIDE_TYPE_MAZE)
+			return 0;
+	}
+
+	if (
+		ride->type == RIDE_TYPE_AIR_POWERED_VERTICAL_COASTER ||
+		ride->mode == RIDE_MODE_CONTINUOUS_CIRCUIT ||
+		ride->mode == RIDE_MODE_CONTINUOUS_CIRCUIT_BLOCK_SECTIONED ||
+		ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED
+		) {
+		if (ride_find_track_gap(&trackElement, &problematicTrackElement) && (!gConfigGeneral.test_unfinished_tracks ||
+			ride->mode == RIDE_MODE_CONTINUOUS_CIRCUIT_BLOCK_SECTIONED || ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED)) {
+			RCT2_GLOBAL(RCT2_ADDRESS_GAME_COMMAND_ERROR_TEXT, uint16) = STR_TRACK_IS_NOT_A_COMPLETE_CIRCUIT;
+			loc_6B528A(&problematicTrackElement);
+			return 0;
+		}
+	}
+
+	if (
+		ride->mode == RIDE_MODE_CONTINUOUS_CIRCUIT_BLOCK_SECTIONED ||
+		ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED
+		) {
+		if (!ride_check_block_brakes(&trackElement, &problematicTrackElement)) {
+			loc_6B528A(&problematicTrackElement);
+			return 0;
+		}
+	}
+
+	if (ride->subtype != 255) {
+		rct_ride_type *rideType = GET_RIDE_ENTRY(ride->subtype);
+		if (rideType->var_008 & 2) {
+			RCT2_GLOBAL(RCT2_ADDRESS_GAME_COMMAND_ERROR_TEXT, uint16) = STR_TRACK_UNSUITABLE_FOR_TYPE_OF_TRAIN;
+			if (ride_check_track_suitability_a(&trackElement, &problematicTrackElement)) {
+				loc_6B528A(&problematicTrackElement);
+				return 0;
+			}
+		}
+		if (rideType->var_008 & 4) {
+			RCT2_GLOBAL(RCT2_ADDRESS_GAME_COMMAND_ERROR_TEXT, uint16) = STR_TRACK_UNSUITABLE_FOR_TYPE_OF_TRAIN;
+			if (ride_check_track_suitability_b(&trackElement, &problematicTrackElement)) {
+				loc_6B528A(&problematicTrackElement);
+				return 0;
+			}
+		}
+	}
+
+	if (ride->mode == RIDE_MODE_STATION_TO_STATION) {
+		if (!ride_find_track_gap(&trackElement, &problematicTrackElement)) {
+			RCT2_GLOBAL(RCT2_ADDRESS_GAME_COMMAND_ERROR_TEXT, uint16) = STR_RIDE_MUST_START_AND_END_WITH_STATIONS;
+			return 0;
+		}
+
+		RCT2_GLOBAL(RCT2_ADDRESS_GAME_COMMAND_ERROR_TEXT, uint16) = STR_STATION_NOT_LONG_ENOUGH;
+		if (ride_check_station_length(&trackElement, &problematicTrackElement)) {
+
+			// This is to prevent a bug in the check_station_length function
+			// remove when check_station_length is reveresed and fixed. Prevents
+			// null dereference. Does not prevent moving screen to top left corner.
+			if (map_element_get_type(problematicTrackElement.element) != MAP_ELEMENT_TYPE_TRACK)
+				loc_6B528A(&trackElement);
+			else loc_6B528A(&problematicTrackElement);
+			return 0;
+		}
+
+		RCT2_GLOBAL(RCT2_ADDRESS_GAME_COMMAND_ERROR_TEXT, uint16) = STR_RIDE_MUST_START_AND_END_WITH_STATIONS;
+		if (ride_check_start_and_end_is_station(&trackElement, &problematicTrackElement)) {
+			loc_6B528A(&problematicTrackElement);
+			return 0;
+		}
+	}
+
+	if (isApplying)
+		sub_6B4D26(rideIndex, &trackElement);
+
+	if (
+		!ride_type_has_flag(ride->type, RIDE_TYPE_FLAG_13) &&
+		!(ride->lifecycle_flags & RIDE_LIFECYCLE_ON_TRACK)
+		) {
+		if (sub_6DD84C(ride, rideIndex, &trackElement, isApplying))
+			return 0;
+	}
+
+	if (
+		(RCT2_GLOBAL(0x0097D4F2 + (ride->type * 8), uint32) & 0x400) &&
+		(ride->lifecycle_flags & RIDE_LIFECYCLE_16) &&
+		!(ride->lifecycle_flags & RIDE_LIFECYCLE_CABLE_LIFT)
+		) {
+		if (sub_6DF4D4(ride, &trackElement, isApplying))
+			return 0;
+	}
+
+	return 1;
+}
 /**
  * 
  *  rct2: 0x006B4EEA
@@ -3668,7 +3926,13 @@ void game_command_set_ride_status(int *eax, int *ebx, int *ecx, int *edx, int *e
 			return;
 		}
 
-		if (!ride_is_valid_for_open(rideIndex, targetStatus == RIDE_STATUS_OPEN, *ebx & GAME_COMMAND_FLAG_APPLY)) {
+		if (targetStatus == RIDE_STATUS_TESTING) {
+			if (!ride_is_valid_for_test(rideIndex, targetStatus == RIDE_STATUS_OPEN, *ebx & GAME_COMMAND_FLAG_APPLY)) {
+				*ebx = MONEY32_UNDEFINED;
+				return;
+			}
+		}
+		else if (!ride_is_valid_for_open(rideIndex, targetStatus == RIDE_STATUS_OPEN, *ebx & GAME_COMMAND_FLAG_APPLY)) {
 			*ebx = MONEY32_UNDEFINED;
 			return;
 		}

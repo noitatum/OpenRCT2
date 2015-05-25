@@ -140,7 +140,7 @@ void window_dispatch_update_all()
 	rct_window *w;
 
 	RCT2_GLOBAL(0x01423604, sint32)++;
-	RCT2_GLOBAL(RCT2_ADDRESS_TOOLTIP_NOT_SHOWN_TICKS, sint16)++;
+	//RCT2_GLOBAL(RCT2_ADDRESS_TOOLTIP_NOT_SHOWN_TICKS, sint16)++;
 	for (w = RCT2_LAST_WINDOW; w >= g_window_list; w--)
 		window_event_update_call(w);
 
@@ -602,6 +602,19 @@ void window_close_all() {
 	}
 }
 
+void window_close_all_except_class(rct_windowclass cls) {
+	rct_window* w;
+
+	window_close_by_class(WC_DROPDOWN);
+
+	for (w = g_window_list; w < RCT2_LAST_WINDOW; w++){
+		if (w->classification != cls && !(w->flags & (WF_STICK_TO_BACK | WF_STICK_TO_FRONT))) {
+			window_close(w);
+			w = g_window_list;
+		}
+	}
+}
+
 /**
  * 
  *  rct2: 0x006EA845
@@ -715,6 +728,17 @@ void window_invalidate_by_number(rct_windowclass cls, rct_windownumber number)
 	for (w = g_window_list; w < RCT2_NEW_WINDOW; w++)
 		if (w->classification == cls && w->number == number)
 			window_invalidate(w);
+}
+
+/**
+  * Invalidates all windows.
+  */
+void window_invalidate_all()
+{
+	rct_window* w;
+
+	for (w = g_window_list; w < RCT2_NEW_WINDOW; w++)
+		window_invalidate(w);
 }
 
 /**

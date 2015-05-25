@@ -134,6 +134,12 @@ config_enum_definition _languageEnum[] = {
 	END_OF_ENUM
 };
 
+config_enum_definition _dateFormatEnum[] = {
+	{ "DD/MM/YY", DATE_FORMAT_DMY },
+	{ "MM/DD/YY", DATE_FORMAT_MDY },
+	END_OF_ENUM
+};
+
 #pragma endregion
 
 #pragma region Section / property definitions
@@ -161,6 +167,10 @@ config_property_definition _generalDefinitions[] = {
 	{ offsetof(general_configuration, window_height),					"window_height",				CONFIG_VALUE_TYPE_SINT32,		-1,								NULL					},
 	{ offsetof(general_configuration, window_snap_proximity),			"window_snap_proximity",		CONFIG_VALUE_TYPE_UINT8,		5,								NULL					},
 	{ offsetof(general_configuration, window_width),					"window_width",					CONFIG_VALUE_TYPE_SINT32,		-1,								NULL					},
+	{ offsetof(general_configuration, hardware_display),				"hardware_display",				CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
+	{ offsetof(general_configuration, test_unfinished_tracks),			"test_unfinished_tracks",		CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
+	{ offsetof(general_configuration, no_test_crashes),					"no_test_crashes",				CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
+	{ offsetof(general_configuration, date_format),						"date_format",					CONFIG_VALUE_TYPE_UINT8,		DATE_FORMAT_DMY,				_dateFormatEnum			},
 };
 
 config_property_definition _interfaceDefinitions[] = {
@@ -169,6 +179,7 @@ config_property_definition _interfaceDefinitions[] = {
 	{ offsetof(interface_configuration, toolbar_show_cheats),			"toolbar_show_cheats",			CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
 	{ offsetof(interface_configuration, allow_subtype_switching),		"allow_subtype_switching",		CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
 	{ offsetof(interface_configuration, rct1_colour_scheme),			"rct1_colour_scheme",			CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
+	{ offsetof(interface_configuration, console_small_font),			"console_small_font",			CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
 };
 
 config_property_definition _soundDefinitions[] = {
@@ -183,13 +194,24 @@ config_property_definition _cheatDefinitions[] = {
 	{ offsetof(cheat_configuration, fast_lift_hill),					"fast_lift_hill",				CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
 	{ offsetof(cheat_configuration, disable_brakes_failure),			"disable_brakes_failure",		CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
 	{ offsetof(cheat_configuration, disable_all_breakdowns),			"disable_all_breakdowns",		CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
+	{ offsetof(cheat_configuration, unlock_all_prices),					"unlock_all_prices",			CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
+};
+
+config_property_definition _twitchDefinitions[] = {
+	{ offsetof(twitch_configuration, channel),							"channel",						CONFIG_VALUE_TYPE_STRING,		{ .value_string = NULL },		NULL					},
+	{ offsetof(twitch_configuration, enable_follower_peep_names),		"follower_peep_names",			CONFIG_VALUE_TYPE_BOOLEAN,		true,							NULL					},
+	{ offsetof(twitch_configuration, enable_follower_peep_tracking),	"follower_peep_tracking",		CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
+	{ offsetof(twitch_configuration, enable_chat_peep_names),			"chat_peep_names",				CONFIG_VALUE_TYPE_BOOLEAN,		true,							NULL					},
+	{ offsetof(twitch_configuration, enable_chat_peep_tracking),		"chat_peep_tracking",			CONFIG_VALUE_TYPE_BOOLEAN,		true,							NULL					},
+	{ offsetof(twitch_configuration, enable_news),						"news",							CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					}
 };
 
 config_section_definition _sectionDefinitions[] = {
 	{ &gConfigGeneral, "general", _generalDefinitions, countof(_generalDefinitions) },
 	{ &gConfigInterface, "interface", _interfaceDefinitions, countof(_interfaceDefinitions) },
 	{ &gConfigSound, "sound", _soundDefinitions, countof(_soundDefinitions) },
-	{ &gConfigCheat, "cheat", _cheatDefinitions, countof(_cheatDefinitions) }
+	{ &gConfigCheat, "cheat", _cheatDefinitions, countof(_cheatDefinitions) },
+	{ &gConfigTwitch, "twitch", _twitchDefinitions, countof(_twitchDefinitions) }
 };
 
 #pragma endregion
@@ -198,6 +220,7 @@ general_configuration gConfigGeneral;
 interface_configuration gConfigInterface;
 sound_configuration gConfigSound;
 cheat_configuration gConfigCheat;
+twitch_configuration gConfigTwitch;
 
 bool config_open(const utf8string path);
 bool config_save(const utf8string path);
@@ -474,9 +497,11 @@ config_section_definition *config_get_section_def(const utf8 *name, int size)
 {
 	int i;
 
-	for (i = 0; i < countof(_sectionDefinitions); i++)
-		if (_strnicmp(_sectionDefinitions[i].section_name, name, size) == 0)
+	for (i = 0; i < countof(_sectionDefinitions); i++) {
+		const_utf8string sectionName = _sectionDefinitions[i].section_name;
+		if (sectionName[size] == 0 && _strnicmp(sectionName, name, size) == 0)
 			return &_sectionDefinitions[i];
+	}
 
 	return NULL;
 }
@@ -485,9 +510,11 @@ config_property_definition *config_get_property_def(config_section_definition *s
 {
 	int i;
 
-	for (i = 0; i < section->property_definitions_count; i++)
-		if (_strnicmp(section->property_definitions[i].property_name, name, size) == 0)
+	for (i = 0; i < section->property_definitions_count; i++) {
+		const_utf8string propertyName = section->property_definitions[i].property_name;
+		if (propertyName[size] == 0 && _strnicmp(propertyName, name, size) == 0)
 			return &section->property_definitions[i];
+	}
 
 	return NULL;
 }

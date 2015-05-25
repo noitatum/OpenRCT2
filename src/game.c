@@ -35,6 +35,7 @@
 #include "management/news_item.h"
 #include "management/research.h"
 #include "object.h"
+#include "openrct2.h"
 #include "peep/peep.h"
 #include "peep/staff.h"
 #include "platform/platform.h"
@@ -852,6 +853,7 @@ void rct2_exit()
 {
 	RCT2_CALLPROC_EBPSAFE(0x006E3879);
 	//Post quit message does not work in 0x6e3879 as its windows only.
+	openrct2_finish();
 }
 
 /**
@@ -869,6 +871,7 @@ void game_load_or_quit_no_save_prompt()
 			load_game();
 	} else if (RCT2_GLOBAL(RCT2_ADDRESS_SAVE_PROMPT_MODE, uint16) == 1) {
 		game_do_command(0, 1, 0, 1, GAME_COMMAND_LOAD_OR_QUIT, 0, 0);
+		tool_cancel();
 		if (RCT2_GLOBAL(RCT2_ADDRESS_INPUT_FLAGS, uint32) & INPUT_FLAG_5) {
 			RCT2_CALLPROC_EBPSAFE(0x0040705E);
 			RCT2_GLOBAL(RCT2_ADDRESS_INPUT_FLAGS, uint32) &= ~INPUT_FLAG_5;
@@ -899,7 +902,7 @@ static uint32 game_do_command_table[58] = {
 	0x006660A8,
 	0x0066640B,
 	0,
-	0x006E08F4,
+	0,
 	0x006E650F,
 	0,
 	0x006A68AE,
@@ -962,7 +965,7 @@ static GAME_COMMAND_POINTER* new_game_command_table[58] = {
 	game_command_emptysub,
 	game_command_emptysub,
 	game_command_remove_scenery,
-	game_command_emptysub,
+	game_command_place_scenery,
 	game_command_emptysub,
 	game_command_place_footpath,
 	game_command_emptysub,

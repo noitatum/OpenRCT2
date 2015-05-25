@@ -24,6 +24,7 @@
 #include "../config.h"
 #include "../cursors.h"
 #include "../drawing/drawing.h"
+#include "../interface/console.h"
 #include "../interface/keyboard_shortcut.h"
 #include "../interface/window.h"
 #include "../input.h"
@@ -44,12 +45,20 @@ int gNumResolutions = 0;
 resolution *gResolutions = NULL;
 int gResolutionsAllowAnyAspectRatio = 0;
 
-SDL_Window *gWindow;
+SDL_Window *gWindow = NULL;
+SDL_Renderer *gRenderer = NULL;
+SDL_Texture *gBufferTexture = NULL;
+SDL_Color gPalette[256];
 
 static SDL_Surface *_surface;
 static SDL_Palette *_palette;
-static int _screenBufferSize;
+
 static void *_screenBuffer;
+static int _screenBufferSize;
+static int _screenBufferWidth;
+static int _screenBufferHeight;
+static int _screenBufferPitch;
+
 static SDL_Cursor* _cursors[CURSOR_COUNT];
 static const int _fullscreen_modes[] = { 0, SDL_WINDOW_FULLSCREEN, SDL_WINDOW_FULLSCREEN_DESKTOP };
 static unsigned int _lastGestureTimestamp;
@@ -58,6 +67,8 @@ static float _gestureRadius;
 static void platform_create_window();
 static void platform_load_cursors();
 static void platform_unload_cursors();
+
+static void platform_refresh_screenbuffer(int width, int height, int pitch);
 
 int resolution_sort_func(const void *pa, const void *pb)
 {
@@ -161,97 +172,86 @@ void platform_get_closest_resolution(int inWidth, int inHeight, int *outWidth, i
 
 void platform_draw()
 {
-	// Lock the surface before setting its pixels
-	if (SDL_MUSTLOCK(_surface))
-		if (SDL_LockSurface(_surface) < 0) {
-			RCT2_ERROR("locking failed %s", SDL_GetError());
-			return;
+	int width = RCT2_GLOBAL(RCT2_ADDRESS_SCREEN_WIDTH, sint16);
+	int height = RCT2_GLOBAL(RCT2_ADDRESS_SCREEN_HEIGHT, sint16);
+
+	if (gConfigGeneral.hardware_display) {
+		void *pixels;
+		int pitch;
+		if (SDL_LockTexture(gBufferTexture, NULL, &pixels, &pitch) == 0) {
+			uint8 *dst = pixels;
+			uint8 *src = (uint8*)_screenBuffer;
+
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < width; x++) {
+					uint8 paletteIndex = *src;
+					SDL_Color colour = gPalette[paletteIndex];
+
+					dst[0] = 255;
+					dst[1] = colour.b;
+					dst[2] = colour.g;
+					dst[3] = colour.r;
+
+					src += 1;
+					dst += 4;
+				}
+
+				src += _screenBufferPitch - width;
+				dst += pitch - (width * 4);
+			}
+			SDL_UnlockTexture(gBufferTexture);
 		}
 
-	// Copy pixels from the virtual screen buffer to the surface
-	memcpy(_surface->pixels, _screenBuffer, _surface->pitch * _surface->h);
+		SDL_RenderCopy(gRenderer, gBufferTexture, NULL, NULL);
+		SDL_RenderPresent(gRenderer);
+	} else {
+		// Lock the surface before setting its pixels
+		if (SDL_MUSTLOCK(_surface)) {
+			if (SDL_LockSurface(_surface) < 0) {
+				log_error("locking failed %s", SDL_GetError());
+				return;
+			}
+		}
 
-	// Unlock the surface
-	if (SDL_MUSTLOCK(_surface))
-		SDL_UnlockSurface(_surface);
+		// Copy pixels from the virtual screen buffer to the surface
+		memcpy(_surface->pixels, _screenBuffer, _surface->pitch * _surface->h);
 
-	// Copy the surface to the window
-	if (SDL_BlitSurface(_surface, NULL, SDL_GetWindowSurface(gWindow), NULL)) {
-		RCT2_ERROR("SDL_BlitSurface %s", SDL_GetError());
-		exit(1);
-	}
-	if (SDL_UpdateWindowSurface(gWindow)) {
-		RCT2_ERROR("SDL_UpdateWindowSurface %s", SDL_GetError());
-		exit(1);
+		// Unlock the surface
+		if (SDL_MUSTLOCK(_surface))
+			SDL_UnlockSurface(_surface);
+
+		// Copy the surface to the window
+		if (SDL_BlitSurface(_surface, NULL, SDL_GetWindowSurface(gWindow), NULL)) {
+			log_fatal("SDL_BlitSurface %s", SDL_GetError());
+			exit(1);
+		}
+		if (SDL_UpdateWindowSurface(gWindow)) {
+			log_fatal("SDL_UpdateWindowSurface %s", SDL_GetError());
+			exit(1);
+		}
 	}
 }
 
 static void platform_resize(int width, int height)
 {
-	rct_drawpixelinfo *screenDPI;
-	int newScreenBufferSize;
-	void *newScreenBuffer;
 	uint32 flags;
-
-	if (_surface != NULL)
-		SDL_FreeSurface(_surface);
-	if (_palette != NULL)
-		SDL_FreePalette(_palette);
-
-	_surface = SDL_CreateRGBSurface(0, width, height, 8, 0, 0, 0, 0);
-	_palette = SDL_AllocPalette(256);
-
-	if (!_surface || !_palette) {
-		RCT2_ERROR("%p || %p == NULL %s", _surface, _palette, SDL_GetError());
-		exit(-1);
-	}
-
-	if (SDL_SetSurfacePalette(_surface, _palette)) {
-		RCT2_ERROR("SDL_SetSurfacePalette failed %s", SDL_GetError());
-		exit(-1);
-	}
-
-	newScreenBufferSize = _surface->pitch * _surface->h;
-	newScreenBuffer = malloc(newScreenBufferSize);
-	if (_screenBuffer == NULL) {
-		memset(newScreenBuffer, 0, newScreenBufferSize);
-	} else {
-		memcpy(newScreenBuffer, _screenBuffer, min(_screenBufferSize, newScreenBufferSize));
-		if (newScreenBufferSize - _screenBufferSize > 0)
-			memset((uint8*)newScreenBuffer + _screenBufferSize, 0, newScreenBufferSize - _screenBufferSize);
-		free(_screenBuffer);
-	}
-
-	_screenBuffer = newScreenBuffer;
-	_screenBufferSize = newScreenBufferSize;
 
 	RCT2_GLOBAL(RCT2_ADDRESS_SCREEN_WIDTH, sint16) = width;
 	RCT2_GLOBAL(RCT2_ADDRESS_SCREEN_HEIGHT, sint16) = height;
 
-	screenDPI = RCT2_ADDRESS(RCT2_ADDRESS_SCREEN_DPI, rct_drawpixelinfo);
-	screenDPI->bits = _screenBuffer;
-	screenDPI->x = 0;
-	screenDPI->y = 0;
-	screenDPI->width = width;
-	screenDPI->height = height;
-	screenDPI->pitch = _surface->pitch - _surface->w;
+	platform_refresh_video();
 
-	RCT2_GLOBAL(0x009ABDF0, uint8) = 6;
-	RCT2_GLOBAL(0x009ABDF1, uint8) = 3;
-	RCT2_GLOBAL(0x009ABDF2, uint8) = 1;
-	RCT2_GLOBAL(RCT2_ADDRESS_DIRTY_BLOCK_WIDTH, sint16) = 64;
-	RCT2_GLOBAL(RCT2_ADDRESS_DIRTY_BLOCK_HEIGHT, sint16) = 8;
-	RCT2_GLOBAL(RCT2_ADDRESS_DIRTY_BLOCK_COLUMNS, sint32) = (width >> 6) + 1;
-	RCT2_GLOBAL(RCT2_ADDRESS_DIRTY_BLOCK_ROWS, sint32) = (height >> 3) + 1;
+	flags = SDL_GetWindowFlags(gWindow);
 
-	window_resize_gui(width, height);
-	window_relocate_windows(width, height);
+	if ((flags & SDL_WINDOW_MINIMIZED) == 0) {
+		window_resize_gui(width, height);
+		window_relocate_windows(width, height);
+	}
 
 	gfx_invalidate_screen();
 
 	// Check if the window has been resized in windowed mode and update the config file accordingly
 	// This is called in rct2_update_2 and is only called after resizing a window has finished
-	flags = SDL_GetWindowFlags(gWindow);
 	if ((flags & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_MINIMIZED |
 		SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) == 0) {
 		if (width != gConfigGeneral.window_width || height != gConfigGeneral.window_height) {
@@ -264,27 +264,28 @@ static void platform_resize(int width, int height)
 
 void platform_update_palette(char* colours, int start_index, int num_colours)
 {
-	SDL_Color base[256];
 	SDL_Surface *surface;
 	int i;
 
-	surface = SDL_GetWindowSurface(gWindow);
-	if (!surface) {
-		RCT2_ERROR("SDL_GetWindowSurface failed %s", SDL_GetError());
-		exit(1);
-	}
-
 	for (i = 0; i < 256; i++) {
-		base[i].r = colours[2];
-		base[i].g = colours[1];
-		base[i].b = colours[0];
-		base[i].a = 0;
+		gPalette[i].r = colours[2];
+		gPalette[i].g = colours[1];
+		gPalette[i].b = colours[0];
+		gPalette[i].a = 0;
 		colours += 4;
 	}
 
-	if (SDL_SetPaletteColors(_palette, base, 0, 256)) {
-		RCT2_ERROR("SDL_SetPaletteColors failed %s", SDL_GetError());
-		exit(1);
+	if (!gConfigGeneral.hardware_display) {
+		surface = SDL_GetWindowSurface(gWindow);
+		if (!surface) {
+			log_fatal("SDL_GetWindowSurface failed %s", SDL_GetError());
+			exit(1);
+		}
+
+		if (_palette != NULL && SDL_SetPaletteColors(_palette, gPalette, 0, 256)) {
+			log_fatal("SDL_SetPaletteColors failed %s", SDL_GetError());
+			exit(1);
+		}
 	}
 }
 
@@ -317,6 +318,10 @@ void platform_process_messages()
 			gCursorState.y = e.motion.y;
 			break;
 		case SDL_MOUSEWHEEL:
+			if (gConsoleOpen) {
+				console_scroll(e.wheel.y);
+				break;
+			}
 			gCursorState.wheel += e.wheel.y * 128;
 			break;
 		case SDL_MOUSEBUTTONDOWN:
@@ -384,23 +389,29 @@ void platform_process_messages()
 				gTextInput[gTextInputLength - 1] = '\0';
 				gTextInputCursorPosition--;
 				gTextInputLength--;
+				console_refresh_caret();
 			}
 			if (e.key.keysym.sym == SDLK_END){
 				gTextInputCursorPosition = gTextInputLength;
+				console_refresh_caret();
 			}
 			if (e.key.keysym.sym == SDLK_HOME){
 				gTextInputCursorPosition = 0;
+				console_refresh_caret();
 			}
 			if (e.key.keysym.sym == SDLK_DELETE && gTextInputLength > 0 && gTextInput && gTextInputCursorPosition != gTextInputLength){
 				memmove(gTextInput + gTextInputCursorPosition, gTextInput + gTextInputCursorPosition + 1, gTextInputMaxLength - gTextInputCursorPosition - 1);
 				gTextInput[gTextInputMaxLength - 1] = '\0';
 				gTextInputLength--;
+				console_refresh_caret();
 			}
 			if (e.key.keysym.sym == SDLK_LEFT && gTextInput){
 				if (gTextInputCursorPosition) gTextInputCursorPosition--;
+				console_refresh_caret();
 			}
 			else if (e.key.keysym.sym == SDLK_RIGHT && gTextInput){
 				if (gTextInputCursorPosition < gTextInputLength) gTextInputCursorPosition++;
+				console_refresh_caret();
 			}
 			// Checks GUI modifier key for Macs otherwise ctrl key
 #ifdef MAC
@@ -450,6 +461,8 @@ void platform_process_messages()
 			if (gTextInputLength < gTextInputMaxLength && gTextInput){
 				// Convert the utf-8 code into rct ascii
 				char new_char;
+				if (e.text.text[0] == '`' && gConsoleOpen)
+					break;
 				if (!(e.text.text[0] & 0x80))
 					new_char = *e.text.text;
 				else if (!(e.text.text[0] & 0x20))
@@ -462,10 +475,11 @@ void platform_process_messages()
 					gTextInputLength++;
 				} else {
 					gTextInput[gTextInputLength++] = new_char;
-					gTextInput[gTextInputLength++] = 0;
+					gTextInput[gTextInputLength] = 0;
 				}
 
 				gTextInputCursorPosition++;
+				console_refresh_caret();
 			}
 			break;
 		default:
@@ -504,9 +518,11 @@ static void platform_create_window()
 	int width, height;
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-		RCT2_ERROR("SDL_Init %s", SDL_GetError());
+		log_fatal("SDL_Init %s", SDL_GetError());
 		exit(-1);
 	}
+
+	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, 0);
 
 	platform_load_cursors();
 	RCT2_CALLPROC_EBPSAFE(0x0068371D);
@@ -694,4 +710,94 @@ int platform_get_cursor_pos(int* x, int* y)
 	GetCursorPos(&point);
 	*x = point.x;
 	*y = point.y;
+}
+
+void platform_refresh_video()
+{
+	int width = RCT2_GLOBAL(RCT2_ADDRESS_SCREEN_WIDTH, sint16);
+	int height = RCT2_GLOBAL(RCT2_ADDRESS_SCREEN_HEIGHT, sint16);
+
+	if (gConfigGeneral.hardware_display) {
+		if (gRenderer == NULL)
+			gRenderer = SDL_CreateRenderer(gWindow, -1, SDL_RENDERER_ACCELERATED);
+
+		if (gBufferTexture != NULL)
+			SDL_DestroyTexture(gBufferTexture);
+	
+		gBufferTexture = SDL_CreateTexture(gRenderer, SDL_PIXELFORMAT_RGBX8888, SDL_TEXTUREACCESS_STREAMING, width, height);
+		platform_refresh_screenbuffer(width, height, width);
+	} else {
+		if (_surface != NULL)
+			SDL_FreeSurface(_surface);
+		if (_palette != NULL)
+			SDL_FreePalette(_palette);
+
+		_surface = SDL_CreateRGBSurface(0, width, height, 8, 0, 0, 0, 0);
+		_palette = SDL_AllocPalette(256);
+
+		if (!_surface || !_palette) {
+			log_fatal("%p || %p == NULL %s", _surface, _palette, SDL_GetError());
+			exit(-1);
+		}
+
+		if (SDL_SetSurfacePalette(_surface, _palette)) {
+			log_fatal("SDL_SetSurfacePalette failed %s", SDL_GetError());
+			exit(-1);
+		}
+
+		platform_refresh_screenbuffer(width, height, _surface->pitch);
+	}
+}
+
+static void platform_refresh_screenbuffer(int width, int height, int pitch)
+{
+	int newScreenBufferSize = pitch * height;
+	char *newScreenBuffer = (char*)malloc(newScreenBufferSize);
+	if (_screenBuffer == NULL) {
+		memset(newScreenBuffer, 0, newScreenBufferSize);
+	} else {
+		if (_screenBufferPitch == pitch) {
+			memcpy(newScreenBuffer, _screenBuffer, min(_screenBufferSize, newScreenBufferSize));
+		} else {
+			char *src = _screenBuffer;
+			char *dst = newScreenBuffer;
+
+			int minWidth = min(_screenBufferWidth, width);
+			int minHeight = min(_screenBufferHeight, height);
+			for (int y = 0; y < minHeight; y++) {
+				memcpy(dst, src, minWidth);
+				if (pitch - minWidth > 0)
+					memset(dst + minWidth, 0, pitch - minWidth);
+
+				src += _screenBufferPitch;
+				dst += pitch;
+			}
+		}
+		if (newScreenBufferSize - _screenBufferSize > 0)
+			memset((uint8*)newScreenBuffer + _screenBufferSize, 0, newScreenBufferSize - _screenBufferSize);
+		free(_screenBuffer);
+	}
+
+	_screenBuffer = newScreenBuffer;
+	_screenBufferSize = newScreenBufferSize;
+	_screenBufferWidth = width;
+	_screenBufferHeight = height;
+	_screenBufferPitch = pitch;
+
+	rct_drawpixelinfo *screenDPI;
+	screenDPI = RCT2_ADDRESS(RCT2_ADDRESS_SCREEN_DPI, rct_drawpixelinfo);
+	screenDPI->bits = _screenBuffer;
+	screenDPI->x = 0;
+	screenDPI->y = 0;
+	screenDPI->width = width;
+	screenDPI->height = height;
+	screenDPI->pitch = _screenBufferPitch - width;
+
+	RCT2_GLOBAL(0x009ABDF0, uint8) = 6;
+	RCT2_GLOBAL(0x009ABDF1, uint8) = 3;
+	RCT2_GLOBAL(0x009ABDF2, uint8) = 1;
+	RCT2_GLOBAL(RCT2_ADDRESS_DIRTY_BLOCK_WIDTH, sint16) = 64;
+	RCT2_GLOBAL(RCT2_ADDRESS_DIRTY_BLOCK_HEIGHT, sint16) = 8;
+	RCT2_GLOBAL(RCT2_ADDRESS_DIRTY_BLOCK_COLUMNS, sint32) = (width >> 6) + 1;
+	RCT2_GLOBAL(RCT2_ADDRESS_DIRTY_BLOCK_ROWS, sint32) = (height >> 3) + 1;
 }

@@ -3445,6 +3445,8 @@ STR_3443    :Pagina 4
 STR_3444    :Pagina 5
 STR_3445    :Werkgebied instellen
 STR_3446    :Werkgebied wissen
+
+#Start van OpenRCT2-indices
 STR_5120    :'Financiën'-knop in de werkbalk tonen
 STR_5121    :'Onderzoek'-knop in de werkbalk tonen
 STR_5122    :Alle voertuigen met hetzelfde baan- of attractietype tonen
@@ -3467,3 +3469,18 @@ STR_5138    :{SMALLFONT}{WINDOW_COLOUR_2}{STRINGID}
 STR_5139    :{WHITE}{STRINGID}
 STR_5140    :Defecte remmen onmogelijk maken
 STR_5141    :Attractiedefecten uitschakelen
+STR_5142    :Normaal
+STR_5143    :Vlot
+STR_5144    :Hard
+STR_5145    :Turbo
+STR_5146    :Nitro
+STR_5147    :'Cheats'-knop in de werkbalk tonen
+STR_5148    :{SMALLFONT}{BLACK}Spelsnelheid veranderen
+STR_5149    :{SMALLFONT}{BLACK}Het cheatsvenster openen
+STR_5150    :Debugging-hulpmiddelen inschakelen
+#Scheidingsteken voor duizendtallen
+STR_5151    :.
+#Scheidingsteken voor decimalen
+STR_5152    :,
+STR_5153    :RCT1-kleurenschema
+STR_5154    :Weergave uitgevoerd door hardware

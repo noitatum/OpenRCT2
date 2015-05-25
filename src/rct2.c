@@ -34,6 +34,7 @@
 #include "localisation/date.h"
 #include "localisation/localisation.h"
 #include "management/news_item.h"
+#include "network/twitch.h"
 #include "object.h"
 #include "openrct2.h"
 #include "platform/platform.h"
@@ -58,12 +59,10 @@ static void rct2_update_2();
 
 static jmp_buf _end_update_jump;
 
-void rct2_quit() {
-	if (gConfigGeneral.confirmation_prompt) {
-		RCT2_GLOBAL(RCT2_ADDRESS_SAVE_PROMPT_MODE, uint16) = PM_QUIT;
-		window_save_prompt_open();
-	} else
-		openrct2_finish();
+void rct2_quit()
+{
+	RCT2_GLOBAL(RCT2_ADDRESS_SAVE_PROMPT_MODE, uint16) = PM_QUIT;
+	window_save_prompt_open();
 }
 
 int rct2_init()
@@ -348,6 +347,7 @@ void rct2_update_2()
 	else
 		game_update();
 
+	twitch_update();
 	console_update();
 	console_draw(RCT2_ADDRESS(RCT2_ADDRESS_SCREEN_DPI, rct_drawpixelinfo));
 }
